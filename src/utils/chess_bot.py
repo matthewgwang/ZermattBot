@@ -222,13 +222,13 @@ def calculate_search_depth(board: chess.Board) -> int:
     """Adaptive depth"""
     move_count = len(board.move_stack)
     num_pieces = len(board.piece_map())
-    
+
     if move_count < 12:
-        return 2
+        return 3  # Increased from 2 - better opening play
     elif num_pieces <= 10:
-        return 4
+        return 5  # Increased from 4 - stronger endgame
     else:
-        return 3
+        return 4  # Increased from 3 - better middlegame
 
 
 def scores_to_probabilities(move_scores: dict) -> dict:
