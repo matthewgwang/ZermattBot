@@ -1,0 +1,11 @@
+__pycache__
+.venv
+venv
+.env.local
+.env
+devtools
+games.pgn
+*.pth
+*.pt
+node_modules
+.next
