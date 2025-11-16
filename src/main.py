@@ -100,7 +100,7 @@ def load_policy_model() -> ChessPolicyNet:
         return _policy_model
 
     model = ChessPolicyNet().to(DEVICE)
-    model_path = "/Users/bernardlim/Documents/Chesshacks/my-chesshacks-bot/src/chess_policy.pt"
+    model_path = "src/chess_policy.pt"
     try:
         print(f"[main] Loading model from: {model_path}")
         state_dict = torch.load(model_path, map_location=DEVICE)
