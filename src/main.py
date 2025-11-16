@@ -6,10 +6,14 @@ import torch.nn as nn
 import torch.nn.functional as F
 import chess
 import traceback
+from pathlib import Path
 
 # ==========================
 # MODEL + DEVICE SETUP
 # ==========================
+
+HERE = Path(__file__).parent
+MODEL_PATH = HERE / "chess_policy.pt"
 
 # Detect best available device
 if torch.backends.mps.is_available():
@@ -99,11 +103,24 @@ def load_policy_model() -> ChessPolicyNet:
     if _policy_model is not None:
         return _policy_model
 
+    # Start with a fresh model on the current device
     model = ChessPolicyNet().to(DEVICE)
-    model_path = "src/chess_policy.pt"
+    model.eval()
+
+    if not MODEL_PATH.exists():
+        print(f"[main] WARNING: model file {MODEL_PATH} not found; using untrained model")
+        _policy_model = model
+        return _policy_model
+
     try:
-        print(f"[main] Loading model from: {model_path}")
-        state_dict = torch.load(model_path, map_location=DEVICE)
+        print(f"[main] Loading model from: {MODEL_PATH}")
+        # PyTorch 2.6+ defaults weights_only=True which breaks older checkpoints.
+        try:
+            state_dict = torch.load(MODEL_PATH, map_location=DEVICE, weights_only=False)
+        except TypeError:
+            # Older torch that doesn't support weights_only argument
+            state_dict = torch.load(MODEL_PATH, map_location=DEVICE)
+
         model.load_state_dict(state_dict)
         model.eval()
         _policy_model = model
@@ -111,8 +128,8 @@ def load_policy_model() -> ChessPolicyNet:
     except Exception as e:
         print("[main] ERROR while loading chess_policy.pt:", repr(e))
         print(traceback.format_exc())
-        # Re-raise so the caller sees the failure and the HTTP error is meaningful
-        raise
+        # Fall back to randomly initialized (untrained) model instead of crashing
+        _policy_model = model
 
     return _policy_model
 
