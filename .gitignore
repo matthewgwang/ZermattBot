@@ -7,5 +7,7 @@ devtools
 games.pgn
 *.pth
 *.pt
+# Allow the main deployed model
+!src/chess_model.pth
 node_modules
 .next
