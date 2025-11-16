@@ -1,3 +1,4 @@
+from __future__ import annotations
 from typing import Callable
 from dataclasses import dataclass
 from chess import Board, Move
@@ -62,16 +63,19 @@ class ChessManager:
         return wrapper
 
     def set_context(self, pgn: str, timeleft: int):
+        # Handle empty PGN (starting position)
+        if not pgn or pgn.strip() == "":
+            board_at_end = Board()
+        else:
+            game = read_game(io.StringIO(pgn))
 
-        game = read_game(io.StringIO(pgn))
+            if game == None:
+                raise ValueError("Invalid PGN")
 
-        if game == None:
-            raise ValueError("Invalid PGN")
-
-        # Reconstruct the board at the end of the mainline
-        board_at_end = game.board()
-        for move in game.mainline_moves():
-            board_at_end.push(move)
+            # Reconstruct the board at the end of the mainline
+            board_at_end = game.board()
+            for move in game.mainline_moves():
+                board_at_end.push(move)
 
         self._ctx = GameContext(
             board=board_at_end,

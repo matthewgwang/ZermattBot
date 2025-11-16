@@ -219,16 +219,16 @@ def get_best_move(board: chess.Board, model, depth: int = 3):
 # ===== UTILITIES =====
 
 def calculate_search_depth(board: chess.Board) -> int:
-    """Adaptive depth"""
+    """Adaptive depth - optimized for fast interactive play"""
     move_count = len(board.move_stack)
     num_pieces = len(board.piece_map())
 
     if move_count < 12:
-        return 3  # Increased from 2 - better opening play
+        return 2  # Fast opening play (~1-2 seconds)
     elif num_pieces <= 10:
-        return 5  # Increased from 4 - stronger endgame
+        return 3  # Fast endgame (~3-5 seconds)
     else:
-        return 4  # Increased from 3 - better middlegame
+        return 2  # Fast middlegame (~1-2 seconds)
 
 
 def scores_to_probabilities(move_scores: dict) -> dict:

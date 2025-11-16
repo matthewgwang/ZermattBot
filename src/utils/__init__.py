@@ -12,3 +12,4 @@ from .chess_bot import (
     load_chess_model,
     CHESS_MODEL
 )
+from .mcts import MCTS, MCTSNode

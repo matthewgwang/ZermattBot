@@ -18,10 +18,11 @@ image = (
 @app.function(
     image=image,
     volumes={"/data": volume},
-    timeout=1800,  # 30 minutes
+    gpu="any",  # Request GPU
+    timeout=3600,  # 1 hour
 )
-def upload_and_train():
-    """Upload PGN and train - all in one function to avoid memory issues"""
+def train():
+    """Train with PGN already in volume"""
     import torch
     import torch.nn as nn
     from torch.utils.data import Dataset, DataLoader
@@ -30,9 +31,10 @@ def upload_and_train():
     import numpy as np
     import os
     
-    # Check if PGN already exists in volume
+    # Check if PGN exists
     if not os.path.exists('/data/games.pgn'):
-        print("❌ PGN file not found in volume. Please upload it first.")
+        print("❌ PGN file not found in volume!")
+        print("   Run: modal volume put chess-data games.pgn /games.pgn")
         return None
     
     print("\n" + "="*60)
@@ -116,7 +118,7 @@ def upload_and_train():
         return move.from_square * 64 + move.to_square
     
     class ChessDataset(Dataset):
-        def __init__(self, pgn_file, max_games=5000, min_elo=1800):
+        def __init__(self, pgn_file, max_games=5000, min_elo=2200):
             print(f"Loading games from {pgn_file}...")
             self.data = []
             
@@ -206,53 +208,31 @@ def upload_and_train():
         print(f"Epoch {epoch+1} Complete: P={avg_p:.4f}, V={avg_v:.4f}")
         print(f"{'='*60}\n")
     
-    # Save model
+    # Save model to volume
     model_cpu = model.cpu()
     torch.save(model_cpu.state_dict(), '/data/chess_model.pth')
     volume.commit()
     
-    # Return model as bytes
+    print("✓ Model saved to volume!")
+    
+    # Also return model as bytes
     with open('/data/chess_model.pth', 'rb') as f:
         return f.read()
 
 
 @app.local_entrypoint()
 def main():
-    """Upload PGN file and train"""
-    import os
+    """Just trigger training - PGN should already be in volume"""
+    print("🚀 Starting GPU training on Modal...\n")
     
-    if not os.path.exists("games.pgn"):
-        print("❌ Error: games.pgn not found!")
-        return
-    
-    print("📤 Uploading games.pgn to Modal volume...")
-    print("   (This uses Modal's CLI - may take 5-10 minutes)")
-    
-    # Use Modal's volume put command to upload the file
-    import subprocess
-    
-    # Upload using Modal CLI
-    result = subprocess.run(
-        ["modal", "volume", "put", "chess-data", "games.pgn", "/games.pgn"],
-        capture_output=True,
-        text=True
-    )
-    
-    if result.returncode != 0:
-        print(f"❌ Upload failed: {result.stderr}")
-        return
-    
-    print("✓ Upload complete!")
-    print("🚀 Starting GPU training...\n")
-    
-    model_bytes = upload_and_train.remote()
+    model_bytes = train.remote()
     
     if model_bytes:
-        print("\n📥 Saving trained model...")
+        print("\n📥 Saving trained model locally...")
         with open('src/chess_model.pth', 'wb') as f:
             f.write(model_bytes)
         
         print("✓ Model saved to src/chess_model.pth")
-        print("\n🎉 Training complete! Run 'npm run dev' to test your bot!")
+        print("\n🎉 Training complete!")
     else:
         print("❌ Training failed")
