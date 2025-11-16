@@ -232,7 +232,7 @@ def self_play_iteration(iteration: int, games_per_iteration: int = 100, num_simu
         training_data = []
         move_count = 0
 
-        while not board.is_game_over() and move_count < 200:
+        while not board.is_game_over() and move_count < 100:
             # Get MCTS probabilities
             action_probs = mcts_search(model, board, num_simulations=num_simulations)
 
@@ -359,6 +359,10 @@ def self_play_iteration(iteration: int, games_per_iteration: int = 100, num_simu
     model_cpu = model.cpu()
     save_path = f'/data/chess_model_iter{iteration}.pth'
     torch.save(model_cpu.state_dict(), save_path)
+
+    # Also save as base model for next run to continue from
+    base_model_path = '/data/chess_model.pth'
+    torch.save(model_cpu.state_dict(), base_model_path)
     volume.commit()
 
     print(f"\nModel saved to {save_path}")
@@ -374,24 +378,33 @@ def main():
     """Run multiple iterations of self-play training"""
     import os
 
-    num_iterations = 15  # More iterations for better learning
-    games_per_iteration = 100  # More games per iteration
-    num_simulations = 100  # More simulations for stronger play
+    iterations_per_run = 5  # Do 5 iterations each run
+    games_per_iteration = 20  # Fast iterations
+    num_simulations = 50  # Balanced quality/speed
+
+    # Find the last completed iteration locally
+    start_iteration = 0
+    for i in range(1000):  # Check up to 1000 iterations
+        if not os.path.exists(f'chess_model_iter{i}.pth'):
+            start_iteration = i
+            break
+
+    num_iterations = start_iteration + iterations_per_run
+
+    if start_iteration > 0:
+        print(f"Found existing training up to iteration {start_iteration - 1}")
+        print(f"Continuing with iterations {start_iteration} to {num_iterations - 1}")
 
     print(f"\n{'='*60}")
     print(f"ALPHAZERO SELF-PLAY TRAINING")
     print(f"{'='*60}")
-    print(f"Iterations: {num_iterations}")
+    print(f"Running iterations: {start_iteration} to {num_iterations-1} ({iterations_per_run} iterations)")
     print(f"Games per iteration: {games_per_iteration}")
     print(f"MCTS simulations: {num_simulations}")
+    print(f"Estimated time: ~{iterations_per_run * 20}-{iterations_per_run * 30} minutes")
     print(f"{'='*60}\n")
 
-    # Upload initial model if it exists
-    if os.path.exists("src/chess_model.pth"):
-        print("Uploading initial model to Modal...")
-        # This would normally use volume.put_file(), but we'll let first iteration handle it
-
-    for iteration in range(num_iterations):
+    for iteration in range(start_iteration, num_iterations):
         print(f"\n{'='*60}")
         print(f"STARTING ITERATION {iteration}")
         print(f"{'='*60}\n")
@@ -411,12 +424,14 @@ def main():
     # Deploy final model to bot automatically
     final_iter = num_iterations - 1
     print(f"\n{'='*60}")
-    print(f"SELF-PLAY TRAINING COMPLETE!")
+    print(f"TRAINING BATCH COMPLETE!")
     print(f"{'='*60}")
-    print(f"Final model: chess_model_iter{final_iter}.pth")
+    print(f"Completed iterations: {start_iteration} to {final_iter}")
+    print(f"Total iterations trained: {final_iter + 1}")
 
     # Auto-deploy to bot
     import shutil
     shutil.copy(f'chess_model_iter{final_iter}.pth', 'src/chess_model.pth')
-    print(f"✓ Automatically deployed to src/chess_model.pth")
-    print(f"\nReload your dev server to use the new model!")
+    print(f"✓ Deployed to src/chess_model.pth")
+    print(f"\nTo continue training: Run 'modal run train_self_play_modal.py' again")
+    print(f"To use model: Restart your bot with 'python serve.py'")

@@ -19,7 +19,7 @@ image = (
     image=image,
     volumes={"/data": volume},
     gpu="any",  # Request GPU
-    timeout=3600,  # 1 hour
+    timeout=7200,  # 2 hours (prevent timeout)
 )
 def train():
     """Train with PGN already in volume"""
@@ -168,15 +168,24 @@ def train():
     
     # Training
     model = ChessNet1500().to(device)
+
+    # Load existing model if available (from self-play or previous training)
+    model_path = '/data/chess_model.pth'
+    if os.path.exists(model_path):
+        print(f"Loading existing model from {model_path}")
+        model.load_state_dict(torch.load(model_path, map_location=device, weights_only=True))
+        print("Continuing training from existing model")
+    else:
+        print("No existing model found, starting from scratch")
     
     dataset = ChessDataset('/data/games.pgn', max_games=5000)
     dataloader = DataLoader(dataset, batch_size=256, shuffle=True, num_workers=0)
     
     policy_criterion = nn.CrossEntropyLoss()
     value_criterion = nn.MSELoss()
-    optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
+    optimizer = torch.optim.Adam(model.parameters(), lr=0.0001)
     
-    for epoch in range(10):
+    for epoch in range(10):  # Reduced from 30 to prevent timeout
         model.train()
         total_p, total_v, num = 0, 0, 0
         
@@ -207,8 +216,16 @@ def train():
         print(f"\n{'='*60}")
         print(f"Epoch {epoch+1} Complete: P={avg_p:.4f}, V={avg_v:.4f}")
         print(f"{'='*60}\n")
-    
-    # Save model to volume
+
+        # Save checkpoint every 5 epochs (in case of timeout)
+        if (epoch + 1) % 5 == 0:
+            model_cpu = model.cpu()
+            torch.save(model_cpu.state_dict(), '/data/chess_model.pth')
+            volume.commit()
+            print(f"✓ Checkpoint saved at epoch {epoch+1}")
+            model = model.to(device)  # Move back to GPU
+
+    # Save final model to volume
     model_cpu = model.cpu()
     torch.save(model_cpu.state_dict(), '/data/chess_model.pth')
     volume.commit()
